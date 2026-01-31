@@ -20,7 +20,8 @@ const CreditAlertForm = () => {
     swiftCode: '',
     walletAddress: '',
     billingAmount: '',
-    percent:''
+    percent:'',
+    sendersAccountNumber:''
   });
 
   const [logoFile, setLogoFile] = useState(null);
@@ -421,6 +422,7 @@ const downloadAsImage = async () => {
           </div>
 
           {/* Row 7: Wallet Address (Full Width) */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
           <div className="flex flex-col">
             <label className="font-semibold mb-2 text-gray-600 text-sm">Wallet Address *</label>
             <input
@@ -432,6 +434,19 @@ const downloadAsImage = async () => {
               placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
               className="py-3 px-4 border border-gray-300 rounded-lg text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 font-mono"
             />
+          </div>
+           <div className="flex flex-col">
+              <label className="font-semibold mb-2 text-gray-600 text-sm">Sender's Account Number *</label>
+              <input
+                type="text"
+                name="sender'sAccountNumber"
+                value={formData.sendersAccountNumber}
+                onChange={handleInputChange}
+                required
+                placeholder="1234567890"
+                className="py-3 px-4 border border-gray-300 rounded-lg text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
           </div>
         
           {/* Row 8: Sender Name and Bank */}
