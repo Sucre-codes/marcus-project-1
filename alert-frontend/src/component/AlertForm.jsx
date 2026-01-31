@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
 import jsPDF from 'jspdf';
 
 const CreditAlertForm = () => {
@@ -162,44 +162,20 @@ const CreditAlertForm = () => {
   setMessage({ type: 'info', text: 'Generating PDF...' });
 
   try {
-    // Clone the element to avoid modifying the original
-    const element = receiptRef.current;
-    const clone = element.cloneNode(true);
-    
-    // Replace all oklch colors with hex/rgb equivalents
-    const allElements = clone.querySelectorAll('*');
-    allElements.forEach(el => {
-      const styles = window.getComputedStyle(element.querySelector(`[class="${el.className}"]`) || element);
-      
-      // Apply computed styles to avoid oklch
-      if (styles.backgroundColor && styles.backgroundColor !== 'rgba(0, 0, 0, 0)') {
-        el.style.backgroundColor = styles.backgroundColor;
-      }
-      if (styles.color) {
-        el.style.color = styles.color;
-      }
-      if (styles.borderColor) {
-        el.style.borderColor = styles.borderColor;
-      }
+    const dataUrl = await domtoimage.toPng(receiptRef.current, {
+      quality: 1,
+      bgcolor: '#ffffff',
+      width: receiptRef.current.scrollWidth,
+      height: receiptRef.current.scrollHeight,
     });
 
-    // Temporarily add clone to document
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    document.body.appendChild(clone);
-
-    const canvas = await html2canvas(clone, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false
+    const img = new Image();
+    img.src = dataUrl;
+    
+    await new Promise((resolve) => {
+      img.onload = resolve;
     });
 
-    // Remove clone
-    document.body.removeChild(clone);
-
-    const imgData = canvas.toDataURL('image/png');
-    
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -208,19 +184,27 @@ const CreditAlertForm = () => {
 
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
+    const imgWidth = img.width;
+    const imgHeight = img.height;
     const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-    const imgX = (pdfWidth - imgWidth * ratio) / 2;
-    const imgY = 0;
 
-    pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+    const imgX = (pdfWidth - imgWidth * ratio) / 2;
+    const imgY = 10;
+
+    pdf.addImage(
+      dataUrl,
+      'PNG',
+      imgX,
+      imgY,
+      imgWidth * ratio,
+      imgHeight * ratio
+    );
+
     pdf.save(`credit-alert-${Date.now()}.pdf`);
-    
-    setMessage({ type: 'success', text: 'Receipt downloaded as PDF' });
+    setMessage({ type: 'success', text: 'Receipt downloaded as PDF!' });
   } catch (error) {
-    console.error('PDF error:', error);
-    setMessage({ type: 'error', text: `Failed to generate PDF: ${error.message}` });
+    console.error('PDF Error:', error);
+    setMessage({ type: 'error', text: 'Failed to generate PDF' });
   }
 };
 
@@ -230,56 +214,30 @@ const downloadAsImage = async () => {
   setMessage({ type: 'info', text: 'Generating image...' });
 
   try {
-    // Clone the element to avoid modifying the original
-    const element = receiptRef.current;
-    const clone = element.cloneNode(true);
-    
-    // Replace all oklch colors with hex/rgb equivalents
-    const allElements = clone.querySelectorAll('*');
-    allElements.forEach(el => {
-      const styles = window.getComputedStyle(element.querySelector(`[class="${el.className}"]`) || element);
-      
-      // Apply computed styles to avoid oklch
-      if (styles.backgroundColor && styles.backgroundColor !== 'rgba(0, 0, 0, 0)') {
-        el.style.backgroundColor = styles.backgroundColor;
-      }
-      if (styles.color) {
-        el.style.color = styles.color;
-      }
-      if (styles.borderColor) {
-        el.style.borderColor = styles.borderColor;
-      }
+    const blob = await domtoimage.toBlob(receiptRef.current, {
+      quality: 1,
+      bgcolor: '#ffffff',
+      width: receiptRef.current.scrollWidth,
+      height: receiptRef.current.scrollHeight,
     });
 
-    // Temporarily add clone to document
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    document.body.appendChild(clone);
-
-    const canvas = await html2canvas(clone, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false
-    });
-
-    // Remove clone
-    document.body.removeChild(clone);
-
-    const dataUrl = canvas.toDataURL('image/png');
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.download = `credit-alert-${Date.now()}.png`;
-    link.href = dataUrl;
+    link.href = url;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
-    setMessage({ type: 'success', text: 'Receipt downloaded as image' });
+    setMessage({ type: 'success', text: 'Receipt downloaded as image!' });
   } catch (error) {
-    console.error('Image error:', error);
-    setMessage({ type: 'error', text: `Failed to generate image: ${error.message}` });
+    console.error('Image Error:', error);
+    setMessage({ type: 'error', text: 'Failed to generate image' });
   }
 };
+
+
   return (
     <div className="max-w-[1400px] mx-auto px-5 py-10 grid grid-cols-1 lg:grid-cols-2 gap-10">
       <div className="bg-white p-8 rounded-xl shadow-lg">
