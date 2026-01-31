@@ -439,11 +439,11 @@ const downloadAsImage = async () => {
               <label className="font-semibold mb-2 text-gray-600 text-sm">Sender's Account Number *</label>
               <input
                 type="text"
-                name="sender'sAccountNumber"
+                name="sendersAccountNumber"
                 value={formData.sendersAccountNumber}
                 onChange={handleInputChange}
                 required
-                placeholder="1234567890"
+                placeholder="128876r649"
                 className="py-3 px-4 border border-gray-300 rounded-lg text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
               />
             </div>
