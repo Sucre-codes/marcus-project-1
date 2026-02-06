@@ -137,7 +137,7 @@ const CreditAlertForm = () => {
       const finalLogoUrl = await uploadLogoToCloudinary();
       const finalQrCodeUrl = await uploadQrCodeToCloudinary();
 
-      const response = await axios.post('https://marcus-project-1.onrender.com/api/send-credit-alert', {
+      const response = await axios.post('https://mobilebanking-oysy.onrender.com/api/send-credit-alert', {
         ...formData,
         logoUrl: finalLogoUrl,
         qrCodeUrl: finalQrCodeUrl
