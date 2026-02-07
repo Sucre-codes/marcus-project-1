@@ -20,8 +20,8 @@ const CreditAlertForm = () => {
     swiftCode: '',
     walletAddress: '',
     billingAmount: '',
-    percent:'',
-    sendersAccountNumber:''
+    percent: '',
+    sendersAccountNumber: ''
   });
 
   const [logoFile, setLogoFile] = useState(null);
@@ -37,11 +37,47 @@ const CreditAlertForm = () => {
   const CLOUDINARY_UPLOAD_PRESET = 'bank_logo';
   const CLOUDINARY_CLOUD_NAME = 'dxakrcgcz';
 
+  // Determine currency based on routing vs IBAN/SWIFT
+  const isEuroTransfer = (formData.ibanNumber || formData.swiftCode) && !formData.routingNumber;
+  const currencySymbol = isEuroTransfer ? '€' : '$';
+  const currency = isEuroTransfer ? 'EUR' : 'USD';
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  // Handle routing number change - clear IBAN and SWIFT when routing is entered
+  const handleRoutingChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      routingNumber: value,
+      ibanNumber: '',
+      swiftCode: ''
+    }));
+  };
+
+  // Handle IBAN change - clear routing when IBAN is entered
+  const handleIbanChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      ibanNumber: value,
+      routingNumber: prev.routingNumber && value ? '' : prev.routingNumber
+    }));
+  };
+
+  // Handle SWIFT change - clear routing when SWIFT is entered
+  const handleSwiftChange = (e) => {
+    const value = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      swiftCode: value,
+      routingNumber: prev.routingNumber && value ? '' : prev.routingNumber
     }));
   };
 
@@ -259,6 +295,23 @@ const CreditAlertForm = () => {
             </div>
           )}
 
+          {/* Currency Info Banner */}
+          {(formData.routingNumber || formData.ibanNumber || formData.swiftCode) && (
+            <div className="mb-4 sm:mb-5 p-3 rounded-lg bg-blue-50 border-l-4 border-blue-500">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">💱</span>
+                <div>
+                  <p className="font-semibold text-blue-900 text-sm">Currency: {currency}</p>
+                  <p className="text-xs text-blue-700">
+                    {isEuroTransfer 
+                      ? 'Transfer will be processed in Euros (EUR)'
+                      : 'Transfer will be processed in US Dollars (USD)'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:gap-4 md:gap-5">
             
             {/* Email and Bank Name */}
@@ -411,16 +464,21 @@ const CreditAlertForm = () => {
 
               <div className="flex flex-col">
                 <label className="font-semibold mb-1.5 sm:mb-2 text-gray-600 text-xs sm:text-sm">
-                  Routing Number
+                  Routing Number (USD)
+                  {formData.routingNumber && <span className="ml-1 text-green-600">✓</span>}
                 </label>
                 <input
                   type="text"
                   name="routingNumber"
                   value={formData.routingNumber}
-                  onChange={handleInputChange}
-                  placeholder="021000021"
-                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  onChange={handleRoutingChange}
+                  placeholder={formData.ibanNumber || formData.swiftCode ? 'Disabled (EUR active)' : '021000021'}
+                  disabled={!!(formData.ibanNumber || formData.swiftCode)}
+                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
+                {formData.routingNumber && (
+                  <p className="mt-1 text-xs text-green-600">USD transfer</p>
+                )}
               </div>
             </div>
 
@@ -428,30 +486,40 @@ const CreditAlertForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="flex flex-col">
                 <label className="font-semibold mb-1.5 sm:mb-2 text-gray-600 text-xs sm:text-sm">
-                  IBAN Number
+                  IBAN Number (EUR)
+                  {formData.ibanNumber && <span className="ml-1 text-blue-600">✓</span>}
                 </label>
                 <input
                   type="text"
                   name="ibanNumber"
                   value={formData.ibanNumber}
-                  onChange={handleInputChange}
-                  placeholder="GB82 WEST 1234 5698 7654 32"
-                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  onChange={handleIbanChange}
+                  placeholder={formData.routingNumber ? 'Disabled (USD active)' : 'GB82 WEST 1234 5698 7654 32'}
+                  disabled={!!formData.routingNumber}
+                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
+                {formData.ibanNumber && !formData.routingNumber && (
+                  <p className="mt-1 text-xs text-blue-600">EUR transfer</p>
+                )}
               </div>
 
               <div className="flex flex-col">
                 <label className="font-semibold mb-1.5 sm:mb-2 text-gray-600 text-xs sm:text-sm">
-                  Swift Code
+                  Swift Code (EUR)
+                  {formData.swiftCode && <span className="ml-1 text-blue-600">✓</span>}
                 </label>
                 <input
                   type="text"
                   name="swiftCode"
                   value={formData.swiftCode}
-                  onChange={handleInputChange}
-                  placeholder="BOFAUS3N"
-                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  onChange={handleSwiftChange}
+                  placeholder={formData.routingNumber ? 'Disabled (USD active)' : 'BOFAUS3N'}
+                  disabled={!!formData.routingNumber}
+                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
+                {formData.swiftCode && !formData.routingNumber && (
+                  <p className="mt-1 text-xs text-blue-600">EUR transfer</p>
+                )}
               </div>
             </div>
 
@@ -525,33 +593,43 @@ const CreditAlertForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div className="flex flex-col">
                 <label className="font-semibold mb-1.5 sm:mb-2 text-gray-600 text-xs sm:text-sm">
-                  Amount *
+                  Amount ({currency}) *
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="1000.00"
-                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="1000.00"
+                    className="py-2.5 sm:py-3 pl-8 pr-3 sm:pr-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 w-full"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col">
                 <label className="font-semibold mb-1.5 sm:mb-2 text-gray-600 text-xs sm:text-sm">
-                  Billing Amount
+                  Billing Amount ({currency})
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="billingAmount"
-                  value={formData.billingAmount}
-                  onChange={handleInputChange}
-                  placeholder="950.00"
-                  className="py-2.5 sm:py-3 px-3 sm:px-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
+                    {currencySymbol}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="billingAmount"
+                    value={formData.billingAmount}
+                    onChange={handleInputChange}
+                    placeholder="950.00"
+                    className="py-2.5 sm:py-3 pl-8 pr-3 sm:pr-4 border border-gray-300 rounded-lg text-xs sm:text-sm transition-all focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 w-full"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col">
@@ -606,15 +684,18 @@ const CreditAlertForm = () => {
                 <div className="mb-4 sm:mb-5">
                   <h3 className="text-green-600 m-0 mb-1 text-lg sm:text-xl">✓ Credit Alert</h3>
                   <p className="text-gray-600 m-0 text-xs sm:text-sm">Transaction Successful</p>
+                  <span className="inline-block mt-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                    💱 {currency} Transfer
+                  </span>
                 </div>
 
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
                   <table className="w-full border-collapse border border-gray-300 rounded my-4 sm:my-5 min-w-[280px]">
                     <tbody>
                       <tr className="border-b border-gray-300">
-                        <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm font-semibold text-gray-800">Amount</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm font-semibold text-gray-800">Amount ({currency})</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-3 text-sm sm:text-lg text-green-600 font-bold text-right">
-                          ${parseFloat(formData.amount || 0).toLocaleString('en-US', { 
+                          {currencySymbol}{parseFloat(formData.amount || 0).toLocaleString('en-US', { 
                             minimumFractionDigits: 2, 
                             maximumFractionDigits: 2 
                           })}
@@ -656,12 +737,30 @@ const CreditAlertForm = () => {
                           {formData.receivingAccountNumber}
                         </td>
                       </tr>
-                      <tr className="bg-gray-50">
-                        <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm font-semibold text-gray-800">Routing Number</td>
-                        <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm text-gray-600 text-right break-words">
-                          {formData.routingNumber}
-                        </td>
-                      </tr>
+                      {formData.routingNumber && (
+                        <tr className="bg-gray-50 border-b border-gray-300">
+                          <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm font-semibold text-gray-800">Routing Number</td>
+                          <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm text-gray-600 text-right break-words">
+                            {formData.routingNumber}
+                          </td>
+                        </tr>
+                      )}
+                      {formData.ibanNumber && (
+                        <tr className="border-b border-gray-300">
+                          <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm font-semibold text-gray-800">IBAN</td>
+                          <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm text-gray-600 text-right break-words">
+                            {formData.ibanNumber}
+                          </td>
+                        </tr>
+                      )}
+                      {formData.swiftCode && (
+                        <tr className="bg-gray-50">
+                          <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm font-semibold text-gray-800">SWIFT Code</td>
+                          <td className="py-2 sm:py-3 px-2 sm:px-3 text-xs sm:text-sm text-gray-600 text-right break-words">
+                            {formData.swiftCode}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
